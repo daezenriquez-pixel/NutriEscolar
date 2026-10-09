@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Colegio Comfandi · Seguimiento nutricional</title>
+<style>
+:root{--azul:#00539F;--azul2:#003B73;--verde:#6CB33F;--verde2:#4E9A2A;--bg:#F2F7FB;--tx:#1d2b3a}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--tx)}
+header{background:linear-gradient(90deg,var(--azul2),var(--azul));color:#fff;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:4px solid var(--verde)}
+header h1{font-size:1.1rem;margin:0}header small{opacity:.85}
+main{max-width:980px;margin:20px auto;padding:0 14px}
+.card{background:#fff;border-radius:14px;padding:20px;box-shadow:0 2px 10px #0001;margin-bottom:18px}
+h2{margin:0 0 12px;color:var(--azul)}
+label{display:block;font-size:.85rem;font-weight:600;margin:10px 0 4px}
+input,select{width:100%;padding:10px;border:1px solid #c5d3e0;border-radius:8px;font-size:1rem}
+button{background:var(--azul);color:#fff;border:0;border-radius:8px;padding:10px 16px;font-size:.95rem;cursor:pointer}
+button:hover{background:var(--azul2)}button.v{background:var(--verde)}button.v:hover{background:var(--verde2)}
+button:disabled{opacity:.6;cursor:wait}
+.tabs{display:flex;gap:8px;margin-bottom:16px}.tabs button{background:#dbe7f3;color:var(--azul)}.tabs button.on{background:var(--azul);color:#fff}
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:720px}
+th{background:var(--azul);color:#fff;text-align:left;padding:8px;font-size:.85rem}td{padding:6px 8px;border-bottom:1px solid #e3ebf3}
+td input{padding:6px;width:90px}
+.badge{padding:3px 10px;border-radius:12px;color:#fff;font-size:.8rem;white-space:nowrap}
+.Bajo{background:#e0a100}.Peso{background:var(--verde)}.Sobrepeso{background:#e67e22}.Obesidad{background:#c0392b}
+.err{color:#c0392b;font-size:.9rem;min-height:1.2em}.ok{color:var(--verde2);font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.kpi{background:var(--bg);border-radius:10px;padding:12px;text-align:center}.kpi b{display:block;font-size:1.5rem;color:var(--azul)}
+li{margin:8px 0}.hide{display:none}
+@media(max-width:600px){header{flex-direction:column;gap:6px}}
+</style>
+</head>
+<body>
+<header><div><h1>Colegio Comfandi</h1><small>Seguimiento nutricional · IMC</small></div><button id="salir" class="hide v" onclick="salir()">Cerrar sesión</button></header>
+<main>
+
+<!-- LOGIN -->
+<section id="login" class="card" style="max-width:420px;margin:40px auto">
+  <h2>Iniciar sesión</h2>
+  <label>Usuario (documento)</label><input id="u" autocomplete="username">
+  <label>Contraseña</label><input id="c" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')entrar()">
+  <p class="err" id="lerr"></p><button class="v" style="width:100%" onclick="entrar()">Ingresar</button>
+</section>
+
+<!-- ADMIN -->
+<section id="admin" class="hide">
+  <div class="tabs"><button id="t1" class="on" onclick="tab(1)">Crear estudiante</button><button id="t2" onclick="tab(2)">Seguimiento mensual</button></div>
+  <div id="p1" class="card">
+    <h2>Nuevo estudiante</h2>
+    <label>Nombre completo</label><input id="n">
+    <label>Grado</label><select id="g1"></select>
+    <label>Número de documento (será usuario y contraseña)</label><input id="d" inputmode="numeric">
+    <p class="err" id="cerr"></p><button class="v" onclick="crear()">Crear estudiante</button>
+  </div>
+  <div id="p2" class="card hide">
+    <h2>Seguimiento mensual</h2>
+    <label>Selecciona el grado</label><select id="g2" onchange="cargar()"></select>
+    <p class="err" id="serr"></p>
+    <div class="tw"><table><thead><tr><th>Estudiante</th><th>Peso (kg)</th><th>Altura (cm)</th><th></th><th>IMC</th><th>Estado</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>
+  </div>
+</section>
+
+<!-- ESTUDIANTE -->
+<section id="est" class="hide"></section>
+</main>
+
+<script>
+let T=sessionStorage.getItem('t'),R=sessionStorage.getItem('r');
+const $=i=>document.getElementById(i);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
+const api=async(u,m='GET',b)=>{const r=await fetch('/api'+u,{method:m,headers:{'Content-Type':'application/json',Authorization:'Bearer '+T},body:b&&JSON.stringify(b)});const d=await r.json();if(!r.ok)throw new Error(d.error||'Error');return d};
+const badge=e=>e?`<span class="badge ${e.split(' ')[0]}">${esc(e)}</span>`:'—';
+
+async function entrar(){
+  try{const d=await api('/login','POST',{usuario:$('u').value.trim(),clave:$('c').value});
+  T=d.token;R=d.rol;sessionStorage.setItem('t',T);sessionStorage.setItem('r',R);iniciar()}
+  catch(e){$('lerr').textContent=e.message}
+}
+function salir(){sessionStorage.clear();location.reload()}
+function iniciar(){
+  if(!T)return;$('login').classList.add('hide');$('salir').classList.remove('hide');
+  if(R==='admin'){$('admin').classList.remove('hide');grados()}else{$('est').classList.remove('hide');panel()}
+}
+function tab(n){[1,2].forEach(i=>{$('p'+i).classList.toggle('hide',i!==n);$('t'+i).classList.toggle('on',i===n)})}
+
+async function grados(){
+  const g=await api('/grados');const o=g.map(x=>`<option value="${x.id}">${esc(x.nombre)}</option>`).join('');
+  $('g1').innerHTML=o;$('g2').innerHTML='<option value="">— Elige un grado —</option>'+o;
+}
+async function crear(){
+  $('cerr').className='err';$('cerr').textContent='';
+  try{const e=await api('/estudiantes','POST',{nombre:$('n').value,grado_id:$('g1').value,documento:$('d').value.trim()});
+  $('cerr').className='ok';$('cerr').textContent='Estudiante creado: '+e.nombre;$('n').value=$('d').value=''}
+  catch(e){$('cerr').textContent=e.message}
+}
+async function cargar(){
+  const g=$('g2').value;if(!g){$('tb').innerHTML='';return}
+  const l=await api('/estudiantes?grado_id='+g);
+  $('tb').innerHTML=l.length?l.map(e=>`<tr id="r${e.id}">
+    <td>${esc(e.nombre)}<br><small>${esc(e.documento)}</small></td>
+    <td><input id="p${e.id}" type="number" step="0.1" value="${e.peso??''}"></td>
+    <td><input id="a${e.id}" type="number" step="0.1" value="${e.altura_cm??''}"></td>
+    <td><button class="v" onclick="medir(${e.id},this)">Medir altura</button></td>
+    <td id="i${e.id}">${e.imc??'—'}</td><td id="s${e.id}">${badge(e.estado)}</td>
+    <td><button onclick="guardar(${e.id},this)">Guardar</button></td></tr>`).join(''):'<tr><td colspan="7">Sin estudiantes en este grado</td></tr>';
+}
+async function medir(id,b){
+  $('serr').textContent='';b.disabled=true;b.textContent='Midiendo…';
+  try{const {id:sid}=await api('/medir','POST');let fin=false;
+    for(let i=0;i<28&&!fin;i++){await new Promise(r=>setTimeout(r,1500));const s=await api('/medir/'+sid);
+      if(s.estado==='listo'){$('a'+id).value=s.altura_cm;fin=true}
+      else if(s.estado==='error'||s.estado==='timeout')throw new Error(s.estado==='error'?'Lectura inválida, intenta de nuevo':'El ESP32 no respondió')}
+    if(!fin)throw new Error('Tiempo agotado')}
+  catch(e){$('serr').textContent=e.message}
+  b.disabled=false;b.textContent='Medir altura';
+}
+async function guardar(id,b){
+  $('serr').textContent='';b.disabled=true;
+  try{const e=await api('/estudiantes/'+id,'PUT',{peso:$('p'+id).value,altura_cm:$('a'+id).value});
+    $('i'+id).textContent=e.imc;$('s'+id).innerHTML=badge(e.estado);b.textContent='✓ Guardado';setTimeout(()=>b.textContent='Guardar',1500)}
+  catch(e){$('serr').textContent=e.message}b.disabled=false;
+}
+
+async function panel(){
+  try{const d=await api('/mi-panel');
+  $('est').innerHTML=`<div class="card"><h2>Hola, ${esc(d.nombre)}</h2><p>Grado: <b>${esc(d.grado)}</b></p>
+  ${d.imc?`<div class="grid"><div class="kpi"><b>${d.peso} kg</b>Peso</div><div class="kpi"><b>${d.altura_cm} cm</b>Altura</div><div class="kpi"><b>${d.imc}</b>IMC</div><div class="kpi">${badge(d.estado)}<br><small>Estado nutricional</small></div></div>`
+  :'<p>Aún no tienes mediciones registradas. Consulta con tu colegio.</p>'}</div>
+  ${d.dieta?`<div class="card"><h2>${esc(d.dieta.titulo)}</h2><ul>${d.dieta.recomendaciones.split('\n').map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
+  <p><small>Estas recomendaciones son generales y no reemplazan la consulta con un profesional de la salud.</small></p></div>`:''}
+  ${d.historial.length>1?`<div class="card"><h2>Mi historial</h2><div class="tw"><table><tr><th>Fecha</th><th>Peso</th><th>Altura</th><th>IMC</th><th>Estado</th></tr>${d.historial.map(h=>`<tr><td>${new Date(h.fecha).toLocaleDateString('es-CO')}</td><td>${h.peso}</td><td>${h.altura_cm}</td><td>${h.imc}</td><td>${badge(h.estado)}</td></tr>`).join('')}</table></div></div>`:''}`}
+  catch(e){salir()}
+}
+iniciar();
+</script>
+</body>
+</html>
