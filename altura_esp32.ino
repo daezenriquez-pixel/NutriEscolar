@@ -15,10 +15,10 @@
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 
-const char* WIFI_SSID = "TU_WIFI";
-const char* WIFI_PASS = "TU_CLAVE_WIFI";
-const char* SERVIDOR  = "https://tu-app.onrender.com";   // sin "/" final
-const char* API_KEY   = "clave_secreta_del_esp32";        // igual a ESP32_KEY del .env
+const char* WIFI_SSID = "WORKINGVIRUS";
+const char* WIFI_PASS = "Mandraque4619";
+const char* SERVIDOR  = "https://nutriescolar-yx5b.onrender.com/";   // sin "/" final
+const char* API_KEY   = "MiClaveSuperSecretaParaElEsp32_987";        // igual a ESP32_KEY del .env
 
 const float ALTURA_SENSOR_CM = 200.0;   // distancia fija sensor -> piso (medirla con flexómetro)
 const int TRIG = 5, ECHO = 18;
